@@ -38,7 +38,7 @@ RUN cd /tmp && \
     cd paru-bin && makepkg -si --noconfirm && \
     rm -rf /tmp/paru-bin
 USER root
-RUN su aurbuild -c "paru -S --noconfirm --needed blackmagic probe-rs"
+RUN su aurbuild -c "paru -S --noconfirm --needed --skipreview blackmagic probe-rs-bin"
 
 # udev rules (same set as embedded-base — for host install only)
 COPY udev-rules/ /etc/udev/rules.d/
