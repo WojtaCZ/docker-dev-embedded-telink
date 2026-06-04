@@ -1,0 +1,24 @@
+# Claude state
+.claude/projects/
+.claude/memory/
+.claude/.credentials.json
+.claude.json
+
+# Build artefacts
+*.bin
+*.elf
+*.hex
+*.map
+*.lst
+out/
+
+# Editor
+.vscode/settings.json
+*.swp
+*~
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

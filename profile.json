@@ -1,0 +1,12 @@
+{
+    "_note": "Copied to .mcu-profile.json by /scaffold-mcu-project telink. Requires Telink_825X_SDK mounted at /opt/telink/sdk.",
+    "_sdk_mount": "Mount your SDK: -v ~/telink/Telink_825X_SDK:/opt/telink/sdk",
+    "build":      "make -j$(nproc) -C ${SDK_PROJECT:-.} TC32_PATH=/opt/telink/sdk/tools/tc32",
+    "buildDebug": "make -j$(nproc) -C ${SDK_PROJECT:-.} TC32_PATH=/opt/telink/sdk/tools/tc32 DEBUG=1",
+    "clean":      "make -C ${SDK_PROJECT:-.} clean",
+    "flash":      "python3 /opt/telink/sdk/tools/tl_check_fw.py build/firmware.bin && echo 'Use Telink BDT or BMP to flash the .bin'",
+    "erase":      "echo 'Telink TLSR8258: use BDT or BMP with tlsr_tools for chip erase'",
+    "reset":      "echo 'Telink TLSR8258: power-cycle or SWS reset via BMP'",
+    "serial":     "picocom -b ${BAUD:-115200} ${PORT:-/dev/ttyUSB0}",
+    "debugServer":"echo 'TC32 debugging: use arm-none-eabi-gdb or gdb-multiarch via BMP SWS interface'"
+}
