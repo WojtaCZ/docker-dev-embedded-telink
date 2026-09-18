@@ -7,8 +7,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-  repository_dispatch:
-    types: [template-image-updated]
+  # Weekly rebuild. This is what keeps the chain fresh: there is no
+  # cross-repo dispatch any more, and a rebuild also picks up Arch package
+  # updates, which a change-triggered build would never do on its own.
+  # Staggered so a parent finishes before its children start (template 03:00, base 04:00, leaves 05:00 UTC Mondays).
+  schedule:
+    - cron: '0 5 * * 1'
 
 permissions:
   contents: read
@@ -18,19 +22,42 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      # This image is ~several GB, and `load: true` stores it twice: once in the
+      # BuildKit cache and again in the Docker daemon. That does not fit beside
+      # the SDKs a hosted runner ships with, and the build dies with "no space
+      # left on device" while importing. None of these are used here.
+      - name: Free up runner disk space
+        run: |
+          echo "before:"; df -h / | tail -1
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc \
+                      /usr/local/.ghcup /usr/share/swift /usr/local/share/boost
+          echo "after:"; df -h / | tail -1
+
+      - uses: docker/setup-buildx-action@v4
 
       - if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Lint shell and JSON assets
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck -S warning run-profile-task.sh scripts/*.sh \
+                                dev-doctor-checks/*.sh tests/*.sh
+          for f in profile.json profile.schema.json \
+                   vscode-templates/tasks.json vscode-templates/launch.json \
+                   claude-embedded-telink/settings.layer.json; do
+            jq -e . "$f" > /dev/null || { echo "invalid JSON: $f"; exit 1; }
+          done
+          echo "shell + JSON assets OK"
+
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -41,11 +68,47 @@ jobs:
             type=sha,prefix=main-,enable={{is_default_branch}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - uses: docker/build-push-action@v5
+      - name: Build (local, for smoke test)
+        uses: docker/build-push-action@v7
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          load: true
+          tags: dev-embedded-telink:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The Telink SDK is EULA-restricted, so CI cannot cross-compile. The smoke
+      # test instead proves the image builds, the 32-bit runtime the tc32 blob
+      # needs is present, and the SDK-absent path fails with a clear message.
+      - name: Smoke test
+        run: |
+          docker run --rm -e DEV_SKIP_UPDATE=1 \
+            -v "$PWD/tests:/tests:ro" \
+            dev-embedded-telink:ci bash /tests/smoke.sh
+
+      - name: Push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  # These files are copies owned by docker-dev-embedded-base. Fail the job if
+  # they have drifted, so the duplication cannot rot silently.
+  asset-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: docker-dev-embedded-telink
+      - uses: actions/checkout@v7
+        with:
+          repository: WojtaCZ/docker-dev-embedded-base
+          path: docker-dev-embedded-base
+      - name: Check shared assets are in sync with embedded-base
+        run: |
+          ./docker-dev-embedded-base/scripts/sync-shared-assets.sh --check \
+            "$PWD/docker-dev-embedded-telink"
