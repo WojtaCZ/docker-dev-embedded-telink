@@ -110,5 +110,7 @@ jobs:
           path: docker-dev-embedded-base
       - name: Check shared assets are in sync with embedded-base
         run: |
-          ./docker-dev-embedded-base/scripts/sync-shared-assets.sh --check \
+          # Invoked through bash, not as ./script: the exec bit on a file from
+          # another repository is not something this workflow should depend on.
+          bash ./docker-dev-embedded-base/scripts/sync-shared-assets.sh --check \
             "$PWD/docker-dev-embedded-telink"
