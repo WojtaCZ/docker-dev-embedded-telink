@@ -57,7 +57,7 @@ RUN sed -i '/^#\[multilib\]/,/^#Include/{s/^#//}' /etc/pacman.conf && \
 COPY udev-rules/ /opt/embedded/udev-rules/
 COPY scripts/install-host-udev-rules.sh /opt/embedded/install-host-udev-rules.sh
 RUN chmod +x /opt/embedded/install-host-udev-rules.sh && \
-    groupadd -f plugdev && usermod -aG dialout,uucp,tty,plugdev,lock dev
+    groupadd -f plugdev && groupadd -f dialout && usermod -aG dialout,uucp,tty,plugdev,lock dev
 
 # Telink SDK is EULA-restricted and not redistributable, so this image ships a
 # mount point rather than a compiler. Mount your downloaded SDK:
